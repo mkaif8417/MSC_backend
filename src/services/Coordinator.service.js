@@ -1,4 +1,4 @@
-const coordinatorDao = require('../daos/Coordinator.dao');
+const CoordinatorDao = require('../daos/coordinator.dao');
 const ERROR_CODES = require('../constants/errorCodes');
 
 const notFoundError = () => {
