@@ -1,0 +1,1 @@
+require('dotenv').config(); const mongoose = require('mongoose'); mongoose.connect(process.env.MONGODB_URI).then(async () => { const result = await mongoose.connection.db.collection('users').deleteMany({ user_role: { $exists: true } }); console.log('Deleted legacy docs:', result.deletedCount); process.exit(0); });

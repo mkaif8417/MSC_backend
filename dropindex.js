@@ -1,0 +1,1 @@
+require('dotenv').config(); const mongoose = require('mongoose'); mongoose.connect(process.env.MONGODB_URI).then(async () => { const result = await mongoose.connection.db.collection('studentattendances').dropIndex('student_id_1_attendance_date_1'); console.log('Dropped:', result); process.exit(0); });
