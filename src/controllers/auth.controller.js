@@ -9,10 +9,10 @@ const env = require('../config/env');
 const getCookieOptions = () => {
   const isProduction = env.NODE_ENV === 'production';
   return {
-    httpOnly: true, // Prevents JavaScript client access (Mitigates XSS)
-    secure: isProduction, // HTTPS only in production
-    sameSite: isProduction ? 'strict' : 'lax', // CSRF protection
-    maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds matching JWT expiry
+    httpOnly: true,
+    secure: isProduction, // must be true for sameSite: 'none' to work
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000
   };
 };
 
