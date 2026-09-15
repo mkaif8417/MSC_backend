@@ -20,6 +20,13 @@ const studentSchema = new mongoose.Schema(
       type: Number,
       min: [0, 'Age cannot be negative']
     },
+    regNo: {
+  type: String,
+  required: [true, 'Registration number is required'],
+  unique: true,
+  index: true,
+  immutable: true
+},
     studyCenterId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'StudyCenter',

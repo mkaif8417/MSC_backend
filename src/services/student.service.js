@@ -5,8 +5,36 @@ const mosqueDao = require('../daos/mosque.dao');
 const Student = require('../models/Student');
 const StudentAttendance = require('../models/StudentAttendance');
 const Guardian = require('../models/Guardian');
+const Counter = require('../models/Counter');
 const ERROR_CODES = require('../constants/errorCodes');
 const { ROLES } = require('../constants/roles');
+
+/**
+ * Traverse StudyCenter -> Mosque -> AreaLocality -> VillageCity -> Taluka -> District
+ * and return the populated District document (or null).
+ */
+const resolveDistrictByStudyCenterId = async (studyCenterId) => {
+  const studyCenter = await studyCenterDao.findById(studyCenterId, null, {
+    path: 'mosqueId',
+    populate: {
+      path: 'areaLocalityId',
+      populate: {
+        path: 'villageCityId',
+        populate: { path: 'talukaId', populate: { path: 'districtId' } }
+      }
+    }
+  });
+
+  return (
+    (studyCenter &&
+      studyCenter.mosqueId &&
+      studyCenter.mosqueId.areaLocalityId &&
+      studyCenter.mosqueId.areaLocalityId.villageCityId &&
+      studyCenter.mosqueId.areaLocalityId.villageCityId.talukaId &&
+      studyCenter.mosqueId.areaLocalityId.villageCityId.talukaId.districtId) ||
+    null
+  );
+};
 
 /**
  * Traverse StudyCenter -> Mosque -> AreaLocality -> VillageCity -> Taluka -> District
@@ -15,25 +43,8 @@ const { ROLES } = require('../constants/roles');
 const validateDistrictScopeByStudyCenterId = async (userContext, studyCenterId) => {
   if (userContext && userContext.role === ROLES.DISTRICT_ADMIN) {
     const allowedDistrictId = userContext.scope && userContext.scope.districtId;
-
-    const studyCenter = await studyCenterDao.findById(studyCenterId, null, {
-      path: 'mosqueId',
-      populate: {
-        path: 'areaLocalityId',
-        populate: {
-          path: 'villageCityId',
-          populate: { path: 'talukaId' }
-        }
-      }
-    });
-
-    const districtId =
-      studyCenter &&
-      studyCenter.mosqueId &&
-      studyCenter.mosqueId.areaLocalityId &&
-      studyCenter.mosqueId.areaLocalityId.villageCityId &&
-      studyCenter.mosqueId.areaLocalityId.villageCityId.talukaId &&
-      studyCenter.mosqueId.areaLocalityId.villageCityId.talukaId.districtId;
+    const district = await resolveDistrictByStudyCenterId(studyCenterId);
+    const districtId = district && district._id;
 
     if (!districtId || !allowedDistrictId || districtId.toString() !== allowedDistrictId.toString()) {
       const error = new Error(
@@ -44,6 +55,28 @@ const validateDistrictScopeByStudyCenterId = async (userContext, studyCenterId) 
       throw error;
     }
   }
+};
+
+/**
+ * Atomically reserve the next GLOBAL sequence number (shared across all
+ * districts) and prefix it with this student's own district code.
+ * e.g. 1st student ever (Bidar) -> BID001, 2nd (Bengaluru) -> BEN002,
+ * 3rd (Bidar again) -> BID003. The number never resets per district.
+ */
+const getNextRegNo = async (district) => {
+  const prefix = (district.name || '')
+    .replace(/[^a-zA-Z]/g, '')
+    .substring(0, 3)
+    .toUpperCase();
+
+  const counter = await Counter.findOneAndUpdate(
+    { _id: 'studentRegNo' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+
+  const seqPadded = String(counter.seq).padStart(3, '0'); // widens past 999 automatically
+  return `${prefix}${seqPadded}`;
 };
 
 /**
@@ -81,9 +114,32 @@ const createStudent = async (data, userContext) => {
     throw error;
   }
 
-  await validateDistrictScopeByStudyCenterId(userContext, studyCenterId);
+  const district = await resolveDistrictByStudyCenterId(studyCenterId);
+  if (!district) {
+    const error = new Error(
+      'Unable to determine District for this Study Center — check that AreaLocality → VillageCity → Taluka → District are fully linked'
+    );
+    error.statusCode = 400;
+    error.code = ERROR_CODES.VALIDATION_ERROR;
+    throw error;
+  }
+
+  if (userContext && userContext.role === ROLES.DISTRICT_ADMIN) {
+    const allowedDistrictId = userContext.scope && userContext.scope.districtId;
+    if (!allowedDistrictId || district._id.toString() !== allowedDistrictId.toString()) {
+      const error = new Error(
+        'Access denied: You are not authorized to manage resources outside your assigned district'
+      );
+      error.statusCode = 403;
+      error.code = ERROR_CODES.FORBIDDEN;
+      throw error;
+    }
+  }
+
+  const regNo = await getNextRegNo(district);
 
   return studentDao.create({
+    regNo,
     name: name.trim(),
     fatherGuardianName: fatherGuardianName.trim(),
     mobileNumber: mobileNumber ? mobileNumber.trim() : undefined,
@@ -157,8 +213,11 @@ const updateStudent = async (id, updateData, userContext = null) => {
     throw error;
   }
 
+  // regNo is permanent and must never be overwritten via update, regardless
+  // of what the client sends in the payload.
   const formattedData = { ...updateData };
   delete formattedData.studyCenterId;
+  delete formattedData.regNo;
 
   ['name', 'fatherGuardianName', 'mobileNumber', 'villageLocality', 'schoolCollegeName', 'currentEducationalLevel'].forEach(
     (field) => {
@@ -212,7 +271,9 @@ const deleteStudent = async (id, userContext = null) => {
 };
 
 module.exports = {
+  resolveDistrictByStudyCenterId,
   validateDistrictScopeByStudyCenterId,
+  getNextRegNo,
   createStudent,
   getStudents,
   getStudentById,
