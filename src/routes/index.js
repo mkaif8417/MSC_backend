@@ -48,3 +48,7 @@ router.use('/programs', programRoutes);
 // dashboard summary
 router.use('/dashboard', dashboardRoutes);
 module.exports = router;
+
+// academics
+router.use('/topics', require('./topic.routes'));
+router.use('/academic-sheets', require('./academicSheet.routes'));
