@@ -20,11 +20,13 @@ const idParamSchema = {
 const classDependentFields = {
   class: Joi.string().valid('8th', '9th', '10th', '11th', '12th', 'Degree').required(),
   courseType: Joi.string()
-    .valid('AICU', 'Special Course', 'Self Study')
+    .valid('AICU', 'Self Study')
     .when('class', {
       is: Joi.valid('8th', '9th', '10th'),
-      then: Joi.valid('AICU', 'Self Study').required(),
-      otherwise: Joi.valid('Self Study', 'Special Course').required() // 11th/12th/Degree
+      then: Joi.required(),
+      otherwise: Joi.forbidden().messages({
+        'any.unknown': 'courseType is not applicable for 11th, 12th, or Degree'
+      })
     })
 };
 
@@ -57,8 +59,15 @@ const studentUpdateSchema = {
     schoolCollegeName: Joi.string().trim().max(200),
     currentEducationalLevel: Joi.string().trim().max(100),
     class: Joi.string().valid('8th', '9th', '10th', '11th', '12th', 'Degree'),
-    courseType: Joi.string().valid('AICU', 'Special Course', 'Self Study'),
-    isActive: Joi.boolean()
+    courseType: Joi.string()
+      .valid('AICU', 'Self Study')
+      .when('class', {
+        is: Joi.valid('8th', '9th', '10th'),
+        then: Joi.optional(),
+        otherwise: Joi.forbidden().messages({
+          'any.unknown': 'courseType is not applicable for 11th, 12th, or Degree'
+        })
+      })
   }).min(1)
 };
 

@@ -85,8 +85,19 @@ router.patch('/divisions/:id', authenticate, requirePermissions(PERMISSIONS.DIVI
 router.delete('/divisions/:id', authenticate, requirePermissions(PERMISSIONS.DIVISION_DELETE), validate(idParamSchema), divisionController.deactivateDivision);
 
 // Cascading helper routes used by dropdowns
+// ⚠️ These two now traverse Division → Region → District instead of
+// Division → District directly. See callout below the code block —
+// DivisionController.js needs updating, not shown here since I don't have it.
 router.get('/divisions/:id/districts', authenticate, requirePermissions(PERMISSIONS.DISTRICT_READ), validate(idParamSchema), divisionController.getDistrictsByDivision);
 router.get('/divisions/by-state/:stateId/districts', authenticate, requirePermissions(PERMISSIONS.DISTRICT_READ), divisionController.getDistrictsByState);
+
+// ==========================================
+// 2.5 REGION ROUTES (/api/v1/locations/regions)
+// ==========================================
+
+const regionRoutes = require('./region.routes');
+
+router.use('/regions', regionRoutes);
 
 // ==============================================
 // 3. DISTRICT ROUTES (/api/v1/locations/districts)
@@ -97,6 +108,7 @@ const districtCreateSchema = {
     name: Joi.string().required().trim().min(2).max(100),
     code: Joi.string().required().trim().min(2).max(10),
     stateId: objectIdSchema.required(),
+    regionId: objectIdSchema.allow(null),
     isActive: Joi.boolean()
   })
 };
@@ -107,6 +119,7 @@ const districtUpdateSchema = {
     name: Joi.string().trim().min(2).max(100),
     code: Joi.string().trim().min(2).max(10),
     stateId: objectIdSchema,
+    regionId: objectIdSchema.allow(null),
     isActive: Joi.boolean()
   }).min(1)
 };

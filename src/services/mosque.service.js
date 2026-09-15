@@ -93,6 +93,17 @@ const generateMosqueCode = async (areaLocalityCode) => {
 };
 
 /**
+ * Trim a { name, contactNumber } staff sub-object
+ */
+const trimStaffMember = (staff) =>
+  staff
+    ? {
+        name: staff.name ? staff.name.trim() : undefined,
+        contactNumber: staff.contactNumber ? staff.contactNumber.trim() : undefined
+      }
+    : undefined;
+
+/**
  * Create new Mosque
  */
 const createMosque = async (data, userContext) => {
@@ -107,7 +118,20 @@ const createMosque = async (data, userContext) => {
     capacity,
     inchargeName,
     contactNumber,
-    isActive
+    isActive,
+    ledBy,
+    masjidStaff,
+    nearestUnemployedGraduatesAndDropouts,
+    studyCenterName,
+    studyCenterStartDate,
+    studyCenterTablesCount,
+    studyCenterChairsCount,
+    studyCenterCapacity,
+    studyCenterRoomsCount,
+    studyCenterInchargeName,
+    studyCenterContactNumber,
+    studyCenterFacilities,
+    studyCenterGrade
   } = data;
 
   // 1. Validate parent AreaLocality exists
@@ -155,6 +179,24 @@ const createMosque = async (data, userContext) => {
     };
   }
 
+  // 7. Format masjidStaff / nearestUnemployedGraduatesAndDropouts
+  const formattedMasjidStaff = masjidStaff
+    ? {
+        khateeb: trimStaffMember(masjidStaff.khateeb),
+        muazzin: trimStaffMember(masjidStaff.muazzin),
+        assistantMuazzin: trimStaffMember(masjidStaff.assistantMuazzin),
+        khadim: trimStaffMember(masjidStaff.khadim)
+      }
+    : undefined;
+
+  const formattedUnemployedList = Array.isArray(nearestUnemployedGraduatesAndDropouts)
+    ? nearestUnemployedGraduatesAndDropouts.map((person) => ({
+        name: person.name.trim(),
+        age: Number(person.age),
+        contactNumber: person.contactNumber.trim()
+      }))
+    : undefined;
+
   return mosqueDao.create({
     code,
     name: name.trim(),
@@ -168,7 +210,20 @@ const createMosque = async (data, userContext) => {
     capacity: capacity !== undefined ? Number(capacity) : undefined,
     inchargeName: inchargeName ? inchargeName.trim() : undefined,
     contactNumber: contactNumber ? contactNumber.trim() : undefined,
-    isActive: isActive !== undefined ? isActive : true
+    isActive: isActive !== undefined ? isActive : true,
+    ledBy,
+    masjidStaff: formattedMasjidStaff,
+    nearestUnemployedGraduatesAndDropouts: formattedUnemployedList,
+    studyCenterName: studyCenterName ? studyCenterName.trim() : undefined,
+    studyCenterStartDate,
+    studyCenterTablesCount: studyCenterTablesCount !== undefined ? Number(studyCenterTablesCount) : 0,
+    studyCenterChairsCount: studyCenterChairsCount !== undefined ? Number(studyCenterChairsCount) : 0,
+    studyCenterCapacity: studyCenterCapacity !== undefined ? Number(studyCenterCapacity) : 0,
+    studyCenterRoomsCount: studyCenterRoomsCount !== undefined ? Number(studyCenterRoomsCount) : 0,
+    studyCenterInchargeName: studyCenterInchargeName ? studyCenterInchargeName.trim() : undefined,
+    studyCenterContactNumber: studyCenterContactNumber ? studyCenterContactNumber.trim() : undefined,
+    studyCenterFacilities,
+    studyCenterGrade
   });
 };
 
@@ -312,6 +367,27 @@ const updateMosque = async (id, updateData, userContext = null) => {
   if (formattedData.googleMapsUrl) formattedData.googleMapsUrl = formattedData.googleMapsUrl.trim();
   if (formattedData.inchargeName) formattedData.inchargeName = formattedData.inchargeName.trim();
   if (formattedData.contactNumber) formattedData.contactNumber = formattedData.contactNumber.trim();
+  if (formattedData.studyCenterName) formattedData.studyCenterName = formattedData.studyCenterName.trim();
+  if (formattedData.studyCenterInchargeName) formattedData.studyCenterInchargeName = formattedData.studyCenterInchargeName.trim();
+  if (formattedData.studyCenterContactNumber) formattedData.studyCenterContactNumber = formattedData.studyCenterContactNumber.trim();
+
+  if (formattedData.masjidStaff) {
+    formattedData.masjidStaff = {
+      khateeb: trimStaffMember(formattedData.masjidStaff.khateeb),
+      muazzin: trimStaffMember(formattedData.masjidStaff.muazzin),
+      assistantMuazzin: trimStaffMember(formattedData.masjidStaff.assistantMuazzin),
+      khadim: trimStaffMember(formattedData.masjidStaff.khadim)
+    };
+  }
+
+  if (Array.isArray(formattedData.nearestUnemployedGraduatesAndDropouts)) {
+    formattedData.nearestUnemployedGraduatesAndDropouts =
+      formattedData.nearestUnemployedGraduatesAndDropouts.map((person) => ({
+        name: person.name.trim(),
+        age: Number(person.age),
+        contactNumber: person.contactNumber.trim()
+      }));
+  }
 
   // Update locationPin if latitude or longitude changed
   const newLat = formattedData.latitude !== undefined ? formattedData.latitude : existingMosque.latitude;

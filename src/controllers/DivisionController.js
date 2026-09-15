@@ -1,4 +1,5 @@
 const Division = require('../models/Division');
+const Region = require('../models/Region');
 const District = require('../models/District');
 
 // ==========================================
@@ -160,11 +161,15 @@ exports.deactivateDivision = async (req, res) => {
 
 // ==========================================
 // Districts belonging to a given division (used by cascading dropdowns)
+// Division → Region → District is now a two-step lookup since District
+// no longer stores divisionId directly (it stores regionId).
 // ==========================================
 exports.getDistrictsByDivision = async (req, res) => {
   try {
-    const districts = await District.find({ divisionId: req.params.id, isActive: true })
-      .select('name code')
+    const regionIds = await Region.find({ divisionId: req.params.id, isActive: true }).distinct('_id');
+
+    const districts = await District.find({ regionId: { $in: regionIds }, isActive: true })
+      .select('name code regionId')
       .sort({ name: 1 });
 
     return res.status(200).json({ success: true, data: districts });

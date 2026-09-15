@@ -43,13 +43,12 @@ const studentSchema = new mongoose.Schema(
       enum: ['8th', '9th', '10th', '11th', '12th', 'Degree'],
       required: [true, 'Class is required']
     },
-    // Radio button choice, always user-selected. Options depend on class group:
-    // 8th/9th/10th      -> AICU or Self Study
-    // 11th/12th/Degree  -> Self Study or Special Course
+    // Radio button choice — ONLY applicable for 8th/9th/10th (AICU or Self Study).
+    // Not applicable/required for 11th/12th/Degree.
     courseType: {
       type: String,
-      enum: ['AICU', 'Special Course', 'Self Study'],
-      required: [true, 'Course type is required']
+      enum: ['AICU', 'Self Study'],
+      default: undefined
     },
     isActive: {
       type: Boolean,
@@ -78,8 +77,9 @@ studentSchema.pre('validate', function preValidate(next) {
       return next(new Error('courseType must be AICU or Self Study for 8th/9th/10th'));
     }
   } else if (upperGroup.includes(this.class)) {
-    if (!['Self Study', 'Special Course'].includes(this.courseType)) {
-      return next(new Error('courseType must be Self Study or Special Course for 11th/12th/Degree'));
+    // No courseType selection allowed/required for 11th, 12th, Degree
+    if (this.courseType !== undefined) {
+      this.courseType = undefined;
     }
   }
   return next();

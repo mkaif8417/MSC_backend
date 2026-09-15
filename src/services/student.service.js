@@ -136,6 +136,14 @@ const getStudentById = async (id, userContext = null) => {
   return student;
 };
 
+/**
+ * Update Student
+ *
+ * Recomputes the effective `class` (new value if provided, else the existing one)
+ * to correctly enforce courseType rules even on partial updates:
+ *  - 8th/9th/10th  -> courseType required (AICU or Self Study)
+ *  - 11th/12th/Degree -> courseType is not applicable and is forcibly cleared
+ */
 const updateStudent = async (id, updateData, userContext = null) => {
   const existingStudent = await getStudentById(id, userContext);
 
@@ -157,6 +165,24 @@ const updateStudent = async (id, updateData, userContext = null) => {
       if (formattedData[field]) formattedData[field] = formattedData[field].trim();
     }
   );
+
+  const upperGroup = ['11th', '12th', 'Degree'];
+  const lowerGroup = ['8th', '9th', '10th'];
+  const effectiveClass = formattedData.class || existingStudent.class;
+
+  if (upperGroup.includes(effectiveClass)) {
+    // courseType is not applicable for these classes — clear it regardless of
+    // what was previously stored or what was sent in this request
+    formattedData.courseType = undefined;
+  } else if (lowerGroup.includes(effectiveClass)) {
+    const effectiveCourseType = formattedData.courseType || existingStudent.courseType;
+    if (!effectiveCourseType) {
+      const error = new Error('courseType is required for 8th/9th/10th');
+      error.statusCode = 400;
+      error.code = ERROR_CODES.VALIDATION_ERROR;
+      throw error;
+    }
+  }
 
   return studentDao.updateById(id, formattedData);
 };
